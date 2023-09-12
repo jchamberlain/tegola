@@ -140,6 +140,9 @@ type Tiler interface {
 	// TileFeature will stream decoded features to the callback function fn
 	// if fn returns ErrCanceled, the TileFeatures method should stop processing
 	TileFeatures(ctx context.Context, layer string, t Tile, params Params, fn func(f *Feature) error) error
+
+	// Cleanup will do anything needed before the Tiler is removed.
+	Cleanup() error
 }
 
 // TilerUnion represents either a Std Tiler or and MVTTiler; only one should be not nil.
@@ -160,6 +163,17 @@ func (tu TilerUnion) Layers() ([]LayerInfo, error) {
 	return nil, ErrNilInitFunc
 }
 
+// Cleanup calls the cleanup method on either Std or MVT layer.
+func (tu TilerUnion) Cleanup() error {
+	if tu.Std != nil {
+		return tu.Std.Cleanup()
+	}
+	if tu.Mvt != nil {
+		return tu.Mvt.Cleanup()
+	}
+	return nil
+}
+
 // InitFunc initialize a provider given a config map. The init function should validate the config map, and report any errors. This is called by the For function.
 type InitFunc func(dicter dict.Dicter, maps []Map) (Tiler, error)
 
@@ -171,18 +185,14 @@ type pfns struct {
 	init InitFunc
 	// mvtInit will be filled out if it's a mvt provider
 	mvtInit MVTInitFunc
-
-	cleanup CleanupFunc
 }
 
 var providers map[string]pfns
 
 // Register the provider with the system. This call is generally made in the init functions of the provider.
 //
-//	the clean up function will be called during shutdown of the provider to allow the provider to do any cleanup.
-//
 // The init function can not be nil, the cleanup function may be nil
-func Register(name string, init InitFunc, cleanup CleanupFunc) error {
+func Register(name string, init InitFunc) error {
 	if init == nil {
 		return ErrNilInitFunc
 	}
@@ -195,8 +205,7 @@ func Register(name string, init InitFunc, cleanup CleanupFunc) error {
 	}
 
 	providers[name] = pfns{
-		init:    init,
-		cleanup: cleanup,
+		init: init,
 	}
 
 	return nil
@@ -204,10 +213,8 @@ func Register(name string, init InitFunc, cleanup CleanupFunc) error {
 
 // MVTRegister the provider with the system. This call is generally made in the init functions of the provider.
 //
-//	the clean up function will be called during shutdown of the provider to allow the provider to do any cleanup.
-//
 // The init function can not be nil, the cleanup function may be nil
-func MVTRegister(name string, init MVTInitFunc, cleanup CleanupFunc) error {
+func MVTRegister(name string, init MVTInitFunc) error {
 	if init == nil {
 		return ErrNilInitFunc
 	}
@@ -221,7 +228,6 @@ func MVTRegister(name string, init MVTInitFunc, cleanup CleanupFunc) error {
 
 	providers[name] = pfns{
 		mvtInit: init,
-		cleanup: cleanup,
 	}
 
 	return nil
@@ -262,7 +268,7 @@ func Drivers(types ...providerType) (l []string) {
 // For function returns a configure provider of the given type; The provider may be a mvt provider or
 // a std provider. The correct entry in TilerUnion will not be nil. If there is an error both entries
 // will be nil.
-func For(name string, config dict.Dicter, maps []Map) (val TilerUnion, err error) {
+func For(name string, config dict.Dicter, maps []Map, namespace string) (val TilerUnion, err error) {
 	var (
 		driversList = Drivers()
 	)
@@ -275,21 +281,47 @@ func For(name string, config dict.Dicter, maps []Map) (val TilerUnion, err error
 	}
 	if p.init != nil {
 		val.Std, err = p.init(config, maps)
+		recordInstance(name, namespace, val)
 		return val, err
 	}
 	if p.mvtInit != nil {
 		val.Mvt, err = p.mvtInit(config, maps)
+		recordInstance(name, namespace, val)
 		return val, err
 	}
 	return val, ErrInvalidRegisteredProvider{Name: name}
 }
 
+// providerInstances tracks all Tilers currently in use.
+// Keys are prefixed by namespace, e.g., `namespace.providerName`.
+var providerInstances map[string]TilerUnion
+
+func recordInstance(name, namespace string, instance TilerUnion) {
+	if providerInstances == nil {
+		providerInstances = make(map[string]TilerUnion)
+	}
+
+	providerInstances[namespace+"."+name] = instance
+}
+
+// Remove unregisters a single provider instance and calls its Remove method.
+func Remove(name, namespace string) error {
+	key := namespace + "." + name
+	if p, exists := providerInstances[key]; exists {
+		delete(providerInstances, key)
+		return p.Cleanup()
+	}
+
+	return nil
+}
+
 // Cleanup is called at the end of the run to allow providers to cleanup
 func Cleanup() {
 	log.Info("cleaning up providers")
-	for _, p := range providers {
-		if p.cleanup != nil {
-			p.cleanup()
+	for k, p := range providerInstances {
+		err := p.Cleanup()
+		if err != nil {
+			log.Errorf("Failed cleaning up provider %s: %s", k, err)
 		}
 	}
 }
