@@ -12,8 +12,8 @@ import (
 
 // App represents a set of providers and maps that should be added/removed together.
 type App struct {
-	Providers []env.Dict     `toml:"providers"`
-	Maps      []provider.Map `toml:"maps"`
+	Providers []env.Dict     `toml:"providers" json:"providers"`
+	Maps      []provider.Map `toml:"maps" json:"maps"`
 	Key       string         // key is used to track this app through its lifecycle and could be anything to uniquely identify it.
 }
 
@@ -37,6 +37,11 @@ func InitSource(sourceType string, options env.Dict, baseDir string) (ConfigSour
 	switch sourceType {
 	case "file":
 		src := FileConfigSource{}
+		err := src.init(options, baseDir)
+		return &src, err
+
+	case "redis":
+		src := RedisConfigSource{}
 		err := src.init(options, baseDir)
 		return &src, err
 

@@ -8,14 +8,14 @@ import (
 // QueryParameter represents an HTTP query parameter specified for use with
 // a given map instance.
 type QueryParameter struct {
-	Name  string `toml:"name"`
-	Token string `toml:"token"`
-	Type  string `toml:"type"`
-	SQL   string `toml:"sql"`
+	Name  string `toml:"name" json:"name"`
+	Token string `toml:"token" json:"token"`
+	Type  string `toml:"type" json:"type"`
+	SQL   string `toml:"sql" json:"sql"`
 	// DefaultSQL replaces SQL if param wasn't passed. Either default_sql or
 	// default_value can be specified
-	DefaultSQL   string `toml:"default_sql"`
-	DefaultValue string `toml:"default_value"`
+	DefaultSQL   string `toml:"default_sql" json:"default_sql"`
+	DefaultValue string `toml:"default_value" json:"default_value"`
 }
 
 // Normalize normalizes param and sets default values

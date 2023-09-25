@@ -97,6 +97,13 @@ func ParseInt(v interface{}) (*int, error) {
 	case int64:
 		i := int(val)
 		return &i, nil
+	case float64: // to support json
+		i := int(val)
+		if float64(i) == val {
+			return &i, nil
+		} else {
+			return nil, ErrType{v}
+		}
 	case string:
 		val, err := replaceEnvVar(val)
 		if err != nil {

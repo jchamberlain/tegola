@@ -22,7 +22,7 @@ func (d Dict) Dict(key string) (v Dict, err error) {
 	}
 
 	if dv, ok = val.(Dict); !ok {
-		return v, dict.ErrKeyType{Key: key, Value: val, T:reflect.TypeOf(v)}
+		return v, dict.ErrKeyType{Key: key, Value: val, T: reflect.TypeOf(v)}
 	}
 	return dv, nil
 }
@@ -434,17 +434,29 @@ func (d Dict) MapSlice(key string) (r []dict.Dicter, err error) {
 		return r, nil
 	}
 
-	arr, ok := v.([]map[string]interface{})
-	if !ok {
-		return r, dict.ErrKeyType{key, v, reflect.TypeOf(arr)}
-	}
+	switch val := v.(type) {
+	case []interface{}: // json
+		r = make([]dict.Dicter, len(val))
+		for k := range val {
+			switch val2 := val[k].(type) {
+			case map[string]interface{}:
+				r[k] = dict.Dicter(Dict(val2))
+			default:
+				return r, fmt.Errorf("Josh")
+			}
+		}
+		return r, nil
 
-	r = make([]dict.Dicter, len(arr))
-	for k := range arr {
-		r[k] = dict.Dicter(Dict(arr[k]))
-	}
+	case []map[string]interface{}: // toml
+		r = make([]dict.Dicter, len(val))
+		for k := range val {
+			r[k] = dict.Dicter(Dict(val[k]))
+		}
+		return r, nil
 
-	return r, nil
+	default:
+		return r, dict.ErrKeyType{key, v, reflect.TypeOf(v)}
+	}
 }
 
 func (d Dict) Interface(key string) (v interface{}, ok bool) {

@@ -1,15 +1,16 @@
 package redis
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/go-spatial/tegola"
 	"github.com/go-spatial/tegola/cache"
 	"github.com/go-spatial/tegola/dict"
+	"github.com/redis/go-redis/v9"
 )
 
 const CacheType = "redis"
@@ -99,7 +100,7 @@ func New(c dict.Dicter) (rcache cache.Interface, err error) {
 
 	client := redis.NewClient(opts)
 
-	pong, err := client.Ping().Result()
+	pong, err := client.Ping(context.Background()).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -137,12 +138,12 @@ func (rdc *RedisCache) Set(key *cache.Key, val []byte) error {
 	}
 
 	return rdc.Redis.
-		Set(key.String(), val, rdc.Expiration).
+		Set(context.Background(), key.String(), val, rdc.Expiration).
 		Err()
 }
 
 func (rdc *RedisCache) Get(key *cache.Key) (val []byte, hit bool, err error) {
-	val, err = rdc.Redis.Get(key.String()).Bytes()
+	val, err = rdc.Redis.Get(context.Background(), key.String()).Bytes()
 
 	switch err {
 	case nil: // cache hit
@@ -155,5 +156,5 @@ func (rdc *RedisCache) Get(key *cache.Key) (val []byte, hit bool, err error) {
 }
 
 func (rdc *RedisCache) Purge(key *cache.Key) (err error) {
-	return rdc.Redis.Del(key.String()).Err()
+	return rdc.Redis.Del(context.Background(), key.String()).Err()
 }
