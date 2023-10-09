@@ -1,0 +1,33 @@
+version: 2
+jobs:
+  build_and_deploy:
+    docker:
+      - image: cimg/base:current
+    steps:
+      # Load git repo into project folder
+      - checkout
+
+      - setup_remote_docker:
+          docker_layer_caching: false # "true" costs extra, but may speed up builds significantly with appropriate configuration
+
+      - run:
+            name: Build Docker image
+            command: DOCKER_BUILDKIT=1 docker build -t tegola .
+
+      - run:
+            name: Deploy to DockerHub
+            command: |
+                docker login --username=$DOCKER_USERNAME --password=$DOCKER_PASSWORD
+                docker tag tegola geostrategies/tegola:latest
+                docker tag tegola geostrategies/tegola:$CIRCLE_BUILD_NUM
+                docker push --all-tags geostrategies/tegola
+
+workflows:
+  version: 2
+  default:
+    jobs:
+      - build_and_deploy:
+          filters:
+            branches:
+              only:
+                - geostrategies-dev

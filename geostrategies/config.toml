@@ -1,0 +1,10 @@
+[webserver]
+port = ":${TEGOLA_PORT}"
+
+[cache]
+type="file"
+basepath="/tmp/tegola"
+
+[app_config_source]
+type = "redis"
+address = "${REDIS_ADDRESS}:6379"

@@ -66,5 +66,6 @@ RUN apk update \
 	&& rm -rf /var/cache/apk/*
 
 COPY --from=build /opt/tegola /opt/
+COPY geostrategies/config.toml /opt/config.toml
 WORKDIR /opt
 ENTRYPOINT ["/opt/tegola"]
