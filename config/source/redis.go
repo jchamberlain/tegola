@@ -6,14 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"regexp"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/go-spatial/tegola/dict"
 	"github.com/go-spatial/tegola/internal/env"
 	"github.com/go-spatial/tegola/internal/log"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -32,34 +32,25 @@ var (
 	defaultPassword   = ""
 	defaultDB         = 0
 	defaultSSL        = false
-	defaultKeyPattern = "^tegola_app:([a-z0-9]+)$"
+	defaultKeyPattern = "tegola_app:*"
 )
 
 // RedisConfigSource is a config source for loading and watching keys in Redis.
 // It uses JSON instead of TOML
 type RedisConfigSource struct {
-	// network  string
-	// address  string
-	// password string
-	// db       string
-	// ssl      bool
-	keyRegex *regexp.Regexp
-	client   *redis.Client
+	keyPattern string
+	client     *redis.Client
 }
 
 func (s *RedisConfigSource) init(options env.Dict, baseDir string /*unused*/) (err error) {
-	s.client, err = createClient(options)
+	s.client, err = createClient(context.Background(), options)
 	if err != nil {
 		return fmt.Errorf("Failed connecting to redis: %s", err)
 	}
 
-	keyPattern, err := options.String("keyPattern", &defaultKeyPattern)
+	s.keyPattern, err = options.String("keyPattern", &defaultKeyPattern)
 	if err != nil {
 		return fmt.Errorf("Could not read keyPattern config: %s", err)
-	}
-	s.keyRegex, err = regexp.Compile(keyPattern)
-	if err != nil {
-		return fmt.Errorf(`Could not compile keyPattern "%s": %s`, keyPattern, err)
 	}
 
 	return nil
@@ -76,46 +67,58 @@ func (s *RedisConfigSource) LoadAndWatch(ctx context.Context) (ConfigWatcher, er
 	}
 
 	go func() {
-		pubsub := s.client.PSubscribe("__keyevent*")
-		defer pubsub.PUnsubscribe()
+		defer appWatcher.Close()
+
+		// Subscribe additions/removals/edits.
+		pubsub := s.client.PSubscribe(ctx, "__keyevent*")
+		defer pubsub.PUnsubscribe(ctx)
 
 		for {
-			msg, err := pubsub.ReceiveMessage()
+			msg, err := pubsub.ReceiveMessage(ctx)
 			if err != nil {
 				log.Errorf("Error receiving Redis event. %s", err)
 				continue
 			}
 
 			// Does the key match the expected pattern?
-			matches := s.keyRegex.FindStringSubmatch(msg.Payload)
-			if len(matches) != 2 {
+			matched, err := filepath.Match(s.keyPattern, msg.Payload)
+			if !matched {
 				log.Debugf("Encountered a key which doesn't match expected pattern: %s. Skipping.", msg.Payload)
 				continue
 			}
 
-			appKey := matches[1]
+			appKey := msg.Payload
 
-			// Handle set
 			if strings.HasSuffix(msg.Channel, ":set") {
-				bin, err := s.client.Get(msg.Payload).Result()
-				if err != nil {
-					log.Errorf(`Could not get key "%s" from Redis: %s`, msg.Payload, err)
-					continue
-				}
-
-				app := App{}
-				log.Info(bin)
-				err = json.Unmarshal([]byte(bin), &app)
-				if err != nil {
-					log.Errorf("Failed parsing JSON for app %s: %s", appKey, err)
-					continue
-				}
-
-				app.Key = appKey
-				appWatcher.Updates <- app
-
+				// Handle set
+				s.loadApp(ctx, msg.Payload, appWatcher.Updates)
 			} else if strings.HasSuffix(msg.Channel, ":expired") || strings.HasSuffix(msg.Channel, ":del") {
-				// Handle expired/del
+				// Handle expired and delete
+				appWatcher.Deletions <- appKey
+			}
+		}
+	}()
+
+	// Now load what's already in Redis.
+	// It's important that we do this after starting the subscription so that nothing is missed. If we scanned the current contents of
+	// Redis and then subscribed, it's possible keys could be added or removed or modified between the two operations and we'd never know.
+	go func() {
+		var cursor uint64
+		for {
+			var keys []string
+			var err error
+			keys, cursor, err = s.client.Scan(ctx, cursor, s.keyPattern, 10).Result()
+			if err != nil {
+				log.Error(err)
+				break
+			}
+
+			for _, key := range keys {
+				s.loadApp(ctx, key, appWatcher.Updates)
+			}
+
+			if cursor == 0 {
+				break
 			}
 		}
 	}()
@@ -176,7 +179,7 @@ func createOptions(c dict.Dicter) (opts *redis.Options, err error) {
 	return o, nil
 }
 
-func createClient(c dict.Dicter) (*redis.Client, error) {
+func createClient(ctx context.Context, c dict.Dicter) (*redis.Client, error) {
 	opts, err := createOptions(c)
 	if err != nil {
 		return nil, err
@@ -184,7 +187,7 @@ func createClient(c dict.Dicter) (*redis.Client, error) {
 
 	client := redis.NewClient(opts)
 
-	pong, err := client.Ping().Result()
+	pong, err := client.Ping(ctx).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -193,4 +196,29 @@ func createClient(c dict.Dicter) (*redis.Client, error) {
 	}
 
 	return client, nil
+}
+
+// loadApp reads the key in redis and loads the app into the updates channel.
+func (s *RedisConfigSource) loadApp(ctx context.Context, key string, updates chan App) {
+	matched, err := filepath.Match(s.keyPattern, key)
+	if !matched || err != nil {
+		log.Debugf("Encountered a key which doesn't match expected pattern: %s. Skipping. (%s)", key, err)
+		return
+	}
+
+	bin, err := s.client.Get(ctx, key).Result()
+	if err != nil {
+		log.Errorf(`Could not get key "%s" from Redis: %s`, key, err)
+		return
+	}
+
+	app := App{}
+	err = json.Unmarshal([]byte(bin), &app)
+	if err != nil {
+		log.Errorf("Failed parsing JSON for app %s: %s", key, err)
+		return
+	}
+
+	app.Key = key
+	updates <- app
 }
