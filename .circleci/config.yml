@@ -1,4 +1,4 @@
-version: 2
+version: 2.1
 jobs:
   build_and_deploy:
     docker:
@@ -23,7 +23,6 @@ jobs:
                 docker push --all-tags geostrategies/tegola
 
 workflows:
-  version: 2
   default:
     jobs:
       - build_and_deploy:
