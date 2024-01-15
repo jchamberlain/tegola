@@ -713,6 +713,8 @@ func (p Provider) setLayerGeomType(l *Layer, geomType string) error {
 		l.geomType = geom.MultiPolygon{}
 	case "geometrycollection":
 		l.geomType = geom.Collection{}
+	case "geometry":
+		l.geomType = struct{}{}
 	default:
 		return fmt.Errorf("unsupported geometry_type (%v) for layer (%v)", geomType, l.name)
 	}
@@ -802,6 +804,8 @@ func (p Provider) inspectLayerGeomType(pname string, l *Layer, maps []provider.M
 					l.geomType = geom.MultiPolygon{}
 				case "ST_GeometryCollection":
 					l.geomType = geom.Collection{}
+				case "ST_Geometry":
+					l.geomType = struct{}{}
 				default:
 					return fmt.Errorf("layer (%v) returned unsupported geometry type (%v)", l.name, v)
 				}
