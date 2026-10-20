@@ -145,7 +145,7 @@ func (l appInitializer) initProviders(providersConfig []env.Dict, maps []provide
 		provArr[i] = providersConfig[i]
 	}
 
-	providers, err := register.Providers(provArr, conf.Maps, namespace)
+	providers, err := register.Providers(provArr, maps, namespace)
 	if err != nil {
 		return nil, fmt.Errorf("could not register providers: %v", err)
 	}
