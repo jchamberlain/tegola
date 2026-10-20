@@ -3,7 +3,9 @@ package postgis
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -440,7 +442,7 @@ func NewLoggerAdapter() *LoggerAdapter {
 }
 
 // Log is the implementation of the Log method required by pgx's tracelog.Logger interface.
-// It logs messages with the warn level only.
+// It logs messages with the warn level only. Canceled queries are logged at the debug level.
 func (l *LoggerAdapter) Log(
 	ctx context.Context, level tracelog.LogLevel,
 	msg string, data map[string]any,
@@ -448,6 +450,19 @@ func (l *LoggerAdapter) Log(
 	// drop >3, where 2=Error 3=Warn
 	if level > tracelog.LogLevelWarn {
 		return
+	}
+
+	if err, ok := data["err"].(error); ok {
+		// log the error's message rather than a pointer to it
+		data = maps.Clone(data)
+		data["err"] = err.Error()
+
+		// queries are canceled whenever a client abandons a request (e.g. a map
+		// panning past a tile before it loads), so this isn't a failure.
+		if errors.Is(err, context.Canceled) {
+			log.Debugf("PostGIS(pgx): %s, %#v", msg, data)
+			return
+		}
 	}
 
 	if level == tracelog.LogLevelError {

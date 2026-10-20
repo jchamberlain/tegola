@@ -1,13 +1,20 @@
 package postgis
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/go-spatial/tegola"
 	"github.com/go-spatial/tegola/dict"
 	"github.com/go-spatial/tegola/internal/ttools"
 	"github.com/go-spatial/tegola/provider"
+	"github.com/jackc/pgx/v5/tracelog"
 )
 
 func TestReplaceTokens(t *testing.T) {
@@ -230,6 +237,94 @@ func TestDecipherFields(t *testing.T) {
 			sql:              "SELECT id FROM test_tags_table WHERE id = 2;",
 			expectedRowCount: 1,
 			expectedTags:     map[string]any{},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, fn(tc))
+	}
+}
+
+func TestLoggerAdapter(t *testing.T) {
+	type tcase struct {
+		level         tracelog.LogLevel
+		err           error
+		expectedLevel string // empty if nothing should be logged
+		expectedErr   string
+	}
+
+	fn := func(tc tcase) func(t *testing.T) {
+		return func(t *testing.T) {
+			var buf bytes.Buffer
+			defaultLogger := slog.Default()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+			defer slog.SetDefault(defaultLogger)
+
+			data := map[string]any{"sql": "SELECT 1"}
+			if tc.err != nil {
+				data["err"] = tc.err
+			}
+			NewLoggerAdapter().Log(context.Background(), tc.level, "Query", data)
+
+			if tc.err != nil && data["err"] != tc.err {
+				t.Errorf("the caller's data should not be modified")
+			}
+
+			if tc.expectedLevel == "" {
+				if buf.Len() != 0 {
+					t.Errorf("expected nothing to be logged, got %v", buf.String())
+				}
+				return
+			}
+
+			var record struct {
+				Level string `json:"level"`
+				Msg   string `json:"msg"`
+			}
+			if err := json.Unmarshal(buf.Bytes(), &record); err != nil {
+				t.Fatalf("error decoding log record %q: %v", buf.String(), err)
+			}
+			if record.Level != tc.expectedLevel {
+				t.Errorf("level, expected %v got %v", tc.expectedLevel, record.Level)
+			}
+			if tc.expectedErr != "" && !strings.Contains(record.Msg, tc.expectedErr) {
+				t.Errorf("message should contain the error text %q, got %v", tc.expectedErr, record.Msg)
+			}
+		}
+	}
+
+	tests := map[string]tcase{
+		"canceled query is debug": {
+			level:         tracelog.LogLevelError,
+			err:           context.Canceled,
+			expectedLevel: "DEBUG",
+			expectedErr:   "context canceled",
+		},
+		"wrapped canceled query is debug": {
+			level:         tracelog.LogLevelError,
+			err:           fmt.Errorf("query failed: %w", context.Canceled),
+			expectedLevel: "DEBUG",
+			expectedErr:   "query failed: context canceled",
+		},
+		"other errors are still errors": {
+			level:         tracelog.LogLevelError,
+			err:           errors.New("relation does not exist"),
+			expectedLevel: "ERROR",
+			expectedErr:   "relation does not exist",
+		},
+		"timeouts are still errors": {
+			level:         tracelog.LogLevelError,
+			err:           context.DeadlineExceeded,
+			expectedLevel: "ERROR",
+			expectedErr:   "context deadline exceeded",
+		},
+		"warnings without errors": {
+			level:         tracelog.LogLevelWarn,
+			expectedLevel: "WARN",
+		},
+		"info is dropped": {
+			level: tracelog.LogLevelInfo,
+			err:   context.Canceled,
 		},
 	}
 
