@@ -18,6 +18,8 @@ import (
 	"github.com/go-spatial/tegola/provider"
 )
 
+// capabilitiesCache maps a map name to a *sync.Map of request key -> *cacheEntry,
+// so that a single map's entries can be dropped when that map is reloaded.
 var capabilitiesCache sync.Map
 
 type cacheEntry struct {
@@ -36,8 +38,22 @@ type HandleMapCapabilities struct {
 	extension string
 }
 
-func cacheKey(mapName string, r *http.Request) string {
-	return mapName + ":" + URLRoot(r).String() + ":" + r.URL.Query().Encode()
+func cacheKey(r *http.Request) string {
+	return URLRoot(r).String() + ":" + r.URL.Query().Encode()
+}
+
+// mapCapabilitiesCache returns the cache of TileJSON responses for the given map.
+func mapCapabilitiesCache(mapName string) *sync.Map {
+	value, _ := capabilitiesCache.LoadOrStore(mapName, &sync.Map{})
+	return value.(*sync.Map)
+}
+
+// InvalidateCapabilities drops any cached TileJSON for the given maps so that it's
+// rebuilt on the next request. Call it whenever maps are added, changed or removed.
+func InvalidateCapabilities(mapNames ...string) {
+	for _, name := range mapNames {
+		capabilitiesCache.Delete(name)
+	}
 }
 
 // ServeHTTP returns details about a map according to the
@@ -58,8 +74,9 @@ func (req HandleMapCapabilities) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		req.extension = "json"
 	}
 
-	cacheKey := cacheKey(req.mapName, r)
-	value, _ := capabilitiesCache.LoadOrStore(cacheKey, &cacheEntry{})
+	mapCache := mapCapabilitiesCache(req.mapName)
+	cacheKey := cacheKey(r)
+	value, _ := mapCache.LoadOrStore(cacheKey, &cacheEntry{})
 	entry, ok := value.(*cacheEntry)
 	if !ok || entry == nil {
 		http.Error(w, "internal cache error", http.StatusInternalServerError)
@@ -70,7 +87,7 @@ func (req HandleMapCapabilities) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		entry.tileJSON, entry.err = req.buildTileJSON(r)
 	})
 	if entry.err != nil {
-		capabilitiesCache.Delete(cacheKey) // remove failed entry to enable a retry
+		mapCache.Delete(cacheKey) // remove failed entry to enable a retry
 		log.Errorf("error building tilejson: %v", entry.err)
 		http.Error(w, "error building map capabilities", http.StatusInternalServerError)
 		return

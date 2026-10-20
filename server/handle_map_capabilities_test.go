@@ -716,3 +716,70 @@ func TestHandleMapCapabilitiesErrorNotCached(t *testing.T) {
 		t.Errorf("GetMap should be called twice (no error caching), was called %d times", callCount)
 	}
 }
+
+func TestInvalidateCapabilities(t *testing.T) {
+	server.HostName = nil
+	server.Port = ""
+
+	// attributions are swapped out below to detect whether a response was rebuilt
+	attributions := map[string]string{
+		"test-map-invalidated": "v1",
+		"test-map-untouched":   "v1",
+	}
+
+	handler := &server.HandleMapCapabilities{
+		GetMap: func(mapName string) (atlas.Map, error) {
+			m := atlas.NewWebMercatorMap(mapName)
+			m.Attribution = attributions[mapName]
+			m.Layers = append(m.Layers, atlas.Layer{
+				Name:              "test-layer",
+				ProviderLayerName: "test-layer-provider",
+				MinZoom:           4,
+				MaxZoom:           9,
+				Provider:          &test.TileProvider{},
+				GeomType:          geom.Point{},
+			})
+			return m, nil
+		},
+	}
+
+	getAttribution := func(mapName string) string {
+		t.Helper()
+		r, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/capabilities/"+mapName+".json", nil)
+		r = r.WithContext(httptreemux.AddParamsToContext(r.Context(), map[string]string{"map_name": mapName + ".json"}))
+
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("request for %v failed: got %v expected %v", mapName, w.Code, http.StatusOK)
+		}
+
+		var tileJSON tilejson.TileJSON
+		if err := json.NewDecoder(w.Body).Decode(&tileJSON); err != nil {
+			t.Fatalf("error decoding tilejson for %v: %v", mapName, err)
+		}
+		if tileJSON.Attribution == nil {
+			t.Fatalf("missing attribution for %v", mapName)
+		}
+		return *tileJSON.Attribution
+	}
+
+	// populate the cache for both maps
+	for mapName := range attributions {
+		if got := getAttribution(mapName); got != "v1" {
+			t.Fatalf("%v: got attribution %v expected v1", mapName, got)
+		}
+	}
+
+	// change both maps, but only invalidate one of them
+	attributions["test-map-invalidated"] = "v2"
+	attributions["test-map-untouched"] = "v2"
+	server.InvalidateCapabilities("test-map-invalidated")
+
+	if got := getAttribution("test-map-invalidated"); got != "v2" {
+		t.Errorf("invalidated map should be rebuilt: got attribution %v expected v2", got)
+	}
+	if got := getAttribution("test-map-untouched"); got != "v1" {
+		t.Errorf("untouched map should still be cached: got attribution %v expected v1", got)
+	}
+}

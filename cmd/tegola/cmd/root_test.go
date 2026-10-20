@@ -2,15 +2,23 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/dimfeld/httptreemux"
+
 	"github.com/go-spatial/tegola/config"
 	"github.com/go-spatial/tegola/config/source"
 	"github.com/go-spatial/tegola/internal/env"
+	"github.com/go-spatial/tegola/mapbox/tilejson"
 	"github.com/go-spatial/tegola/provider"
+	_ "github.com/go-spatial/tegola/provider/test"
+	"github.com/go-spatial/tegola/server"
 )
 
 type initializerMock struct {
@@ -200,5 +208,90 @@ func TestGetProviderNames(t *testing.T) {
 	names = getProviderNames(app)
 	if !reflect.DeepEqual(expected, names) {
 		t.Errorf("Expected provider names %v; found %v", expected, names)
+	}
+}
+
+func TestAppReloadInvalidatesCapabilities(t *testing.T) {
+	const mapName = "reload-test-map"
+
+	newApp := func(attribution string) source.App {
+		return source.App{
+			Key: "reload-test-app",
+			Providers: []env.Dict{
+				{"name": "reload-test-provider", "type": "test"},
+			},
+			Maps: []provider.Map{
+				{
+					Name:        mapName,
+					Attribution: env.String(attribution),
+					Layers: []provider.MapLayer{
+						{ProviderLayer: "reload-test-provider.test-layer"},
+					},
+				},
+			},
+		}
+	}
+
+	loader := appInitializer{}
+	load := func(app source.App) {
+		t.Helper()
+		if err := config.ValidateApp(&app); err != nil {
+			t.Fatalf("invalid app: %v", err)
+		}
+		providers, err := loader.initProviders(app.Providers, app.Maps, app.Key)
+		if err != nil {
+			t.Fatalf("error initializing providers: %v", err)
+		}
+		if err = loader.initMaps(app.Maps, providers); err != nil {
+			t.Fatalf("error initializing maps: %v", err)
+		}
+	}
+
+	getCapabilities := func() (int, tilejson.TileJSON) {
+		t.Helper()
+		r, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/capabilities/"+mapName+".json", nil)
+		r = r.WithContext(httptreemux.AddParamsToContext(r.Context(), map[string]string{"map_name": mapName + ".json"}))
+
+		w := httptest.NewRecorder()
+		server.HandleMapCapabilities{}.ServeHTTP(w, r)
+
+		var tileJSON tilejson.TileJSON
+		if w.Code == http.StatusOK {
+			if err := json.NewDecoder(w.Body).Decode(&tileJSON); err != nil {
+				t.Fatalf("error decoding tilejson: %v", err)
+			}
+		}
+		return w.Code, tileJSON
+	}
+
+	assertAttribution := func(expected string) {
+		t.Helper()
+		code, tileJSON := getCapabilities()
+		if code != http.StatusOK {
+			t.Fatalf("capabilities request failed: got %v expected %v", code, http.StatusOK)
+		}
+		if tileJSON.Attribution == nil {
+			t.Fatalf("missing attribution, expected %v", expected)
+		}
+		if *tileJSON.Attribution != expected {
+			t.Errorf("got attribution %v expected %v", *tileJSON.Attribution, expected)
+		}
+	}
+
+	v1 := newApp("v1")
+	load(v1)
+	assertAttribution("v1")
+
+	// Reloading the app should serve the new version, not the cached one.
+	loader.unload(v1)
+	v2 := newApp("v2")
+	load(v2)
+	defer loader.unload(v2)
+	assertAttribution("v2")
+
+	// Once the app is unloaded, its map should no longer be served.
+	loader.unload(v2)
+	if code, _ := getCapabilities(); code == http.StatusOK {
+		t.Errorf("unloaded map should not be served from cache")
 	}
 }

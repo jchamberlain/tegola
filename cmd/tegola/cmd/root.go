@@ -17,6 +17,7 @@ import (
 	"github.com/go-spatial/tegola/internal/env"
 	"github.com/go-spatial/tegola/internal/log"
 	"github.com/go-spatial/tegola/provider"
+	"github.com/go-spatial/tegola/server"
 )
 
 var (
@@ -158,13 +159,18 @@ func (l appInitializer) initMaps(maps []provider.Map, providers map[string]provi
 		return fmt.Errorf("could not register maps: %v", err)
 	}
 
+	// Drop any capabilities cached under these map names before they were (re)loaded.
+	server.InvalidateCapabilities(getMapNames(source.App{Maps: maps})...)
+
 	return nil
 }
 
 // unload deregisters the maps and providers of an app.
 func (l appInitializer) unload(app source.App) {
-	register.UnloadMaps(nil, getMapNames(app))
+	mapNames := getMapNames(app)
+	register.UnloadMaps(nil, mapNames)
 	register.UnloadProviders(getProviderNames(app), app.Key)
+	server.InvalidateCapabilities(mapNames...)
 }
 
 // initAppConfigSource sets up an additional configuration source for "apps" (groups of providers and maps) to be loaded and unloaded on-the-fly.
