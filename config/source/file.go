@@ -77,7 +77,7 @@ func (s *FileConfigSource) LoadAndWatch(ctx context.Context) (ConfigWatcher, err
 			}
 
 			log.Infof("Loading app file %s...", entry.Name())
-			s.loadApp(filepath.Join(s.dir, entry.Name()), appWatcher.Updates)
+			s.loadAppFromFile(filepath.Join(s.dir, entry.Name()), appWatcher.Updates)
 		}
 
 		// Now start processing future additions/removals/edits.
@@ -95,7 +95,7 @@ func (s *FileConfigSource) LoadAndWatch(ctx context.Context) (ConfigWatcher, err
 
 				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
 					log.Infof("Loading app file %s (%s)...", event.Name, event.Op)
-					s.loadApp(event.Name, appWatcher.Updates)
+					s.loadAppFromFile(event.Name, appWatcher.Updates)
 				} else if event.Has(fsnotify.Remove) {
 					log.Infof("Unloading app file %s (%s)...", event.Name, event.Op)
 					appWatcher.Deletions <- event.Name
@@ -118,8 +118,8 @@ func (s *FileConfigSource) LoadAndWatch(ctx context.Context) (ConfigWatcher, err
 	return appWatcher, nil
 }
 
-// loadApp reads the file and loads the app into the updates channel.
-func (s *FileConfigSource) loadApp(filename string, updates chan App) {
+// loadAppFromFile reads the file and loads the app into the updates channel.
+func (s *FileConfigSource) loadAppFromFile(filename string, updates chan App) {
 	f, err := os.Open(filename)
 	if err != nil {
 		log.Errorf("Failed to load %s: %s", filename, err)
