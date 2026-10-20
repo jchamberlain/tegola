@@ -10,6 +10,7 @@ import (
 	"github.com/go-test/deep"
 
 	"github.com/go-spatial/tegola/config"
+	"github.com/go-spatial/tegola/config/source"
 	"github.com/go-spatial/tegola/internal/env"
 	"github.com/go-spatial/tegola/mapbox/tilejson"
 	"github.com/go-spatial/tegola/provider"
@@ -67,7 +68,7 @@ func TestParse(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 
-			conf, err := config.Parse(f, "")
+			conf, err := config.Parse(f, "", "")
 			if tc.expectedErr != nil {
 				if err == nil {
 					t.Fatalf("expected err %s, got nil", tc.expectedErr)
@@ -129,62 +130,64 @@ func TestParse(t *testing.T) {
 					"type":     "file",
 					"basepath": "/tmp/tegola-cache",
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
 							},
 						},
 					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						TileBuffer:  env.IntPtr(env.Int(12)),
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water",
-								MinZoom:       env.UintPtr(10),
-								MaxZoom:       env.UintPtr(20),
-								DontSimplify:  true,
-								DontClip:      true,
-								DontClean:     true,
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							TileBuffer:  env.IntPtr(env.Int(12)),
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water",
+									MinZoom:       env.UintPtr(10),
+									MaxZoom:       env.UintPtr(20),
+									DontSimplify:  true,
+									DontClip:      true,
+									DontClean:     true,
+								},
 							},
-						},
-						Parameters: []provider.QueryParameter{
-							{
-								Name:  "param1",
-								Token: "!PARAM1!",
-								SQL:   "?",
-								Type:  "string",
-							},
-							{
-								Name:         "param2",
-								Token:        "!PARAM2!",
-								Type:         "int",
-								SQL:          "AND answer = ?",
-								DefaultValue: "42",
-							},
-							{
-								Name:       "param3",
-								Token:      "!PARAM3!",
-								Type:       "float",
-								SQL:        "?",
-								DefaultSQL: "AND pi = 3.1415926",
+							Parameters: []provider.QueryParameter{
+								{
+									Name:  "param1",
+									Token: "!PARAM1!",
+									SQL:   "?",
+									Type:  "string",
+								},
+								{
+									Name:         "param2",
+									Token:        "!PARAM2!",
+									Type:         "int",
+									SQL:          "AND answer = ?",
+									DefaultValue: "42",
+								},
+								{
+									Name:       "param3",
+									Token:      "!PARAM3!",
+									Type:       "float",
+									SQL:        "?",
+									DefaultSQL: "AND pi = 3.1415926",
+								},
 							},
 						},
 					},
@@ -209,74 +212,76 @@ func TestParse(t *testing.T) {
 						},
 					},
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water_0_5",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
-							},
-							{
-								"name":               "water_6_10",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
-							},
-						},
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{ENV_TEST_CENTER_X, ENV_TEST_CENTER_Y, ENV_TEST_CENTER_Z},
-						TileBuffer:  env.IntPtr(env.Int(64)),
-						Layers: []provider.MapLayer{
-							{
-								Name:          "water",
-								ProviderLayer: ENV_TEST_PROVIDER_LAYER,
-								MinZoom:       nil,
-								MaxZoom:       nil,
-							},
-							{
-								Name:          "water",
-								ProviderLayer: "provider1.water_6_10",
-								MinZoom:       env.UintPtr(6),
-								MaxZoom:       env.UintPtr(10),
-							},
-						},
-					},
-					{
-						Name:        "osm_2",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						TileBuffer:  env.IntPtr(env.Int(64)),
-						Layers: []provider.MapLayer{
-							{
-								Name:          "water",
-								ProviderLayer: "provider1.water_0_5",
-								MinZoom:       env.UintPtr(0),
-								MaxZoom:       env.UintPtr(5),
-								DefaultTags: env.Dict{
-									"provider": ENV_TEST_MAP_LAYER_DEFAULT_TAG,
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water_0_5",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
+								{
+									"name":               "water_6_10",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
 								},
 							},
-							{
-								Name:          "water",
-								ProviderLayer: "provider1.water_6_10",
-								MinZoom:       env.UintPtr(6),
-								MaxZoom:       env.UintPtr(10),
+						},
+					},
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{ENV_TEST_CENTER_X, ENV_TEST_CENTER_Y, ENV_TEST_CENTER_Z},
+							TileBuffer:  env.IntPtr(env.Int(64)),
+							Layers: []provider.MapLayer{
+								{
+									Name:          "water",
+									ProviderLayer: ENV_TEST_PROVIDER_LAYER,
+									MinZoom:       nil,
+									MaxZoom:       nil,
+								},
+								{
+									Name:          "water",
+									ProviderLayer: "provider1.water_6_10",
+									MinZoom:       env.UintPtr(6),
+									MaxZoom:       env.UintPtr(10),
+								},
+							},
+						},
+						{
+							Name:        "osm_2",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							TileBuffer:  env.IntPtr(env.Int(64)),
+							Layers: []provider.MapLayer{
+								{
+									Name:          "water",
+									ProviderLayer: "provider1.water_0_5",
+									MinZoom:       env.UintPtr(0),
+									MaxZoom:       env.UintPtr(5),
+									DefaultTags: env.Dict{
+										"provider": ENV_TEST_MAP_LAYER_DEFAULT_TAG,
+									},
+								},
+								{
+									Name:          "water",
+									ProviderLayer: "provider1.water_6_10",
+									MinZoom:       env.UintPtr(6),
+									MaxZoom:       env.UintPtr(10),
+								},
 							},
 						},
 					},
@@ -306,74 +311,76 @@ func TestParse(t *testing.T) {
 						},
 					},
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]interface{}{
-							{
-								"name":               "water_0_5",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
-							},
-							{
-								"name":               "water_6_10",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
-							},
-						},
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{ENV_TEST_CENTER_X, ENV_TEST_CENTER_Y, ENV_TEST_CENTER_Z},
-						TileBuffer:  env.IntPtr(env.Int(64)),
-						Layers: []provider.MapLayer{
-							{
-								Name:          "water",
-								ProviderLayer: ENV_TEST_PROVIDER_LAYER,
-								MinZoom:       nil,
-								MaxZoom:       nil,
-							},
-							{
-								Name:          "water",
-								ProviderLayer: "provider1.water_6_10",
-								MinZoom:       env.UintPtr(6),
-								MaxZoom:       env.UintPtr(10),
-							},
-						},
-					},
-					{
-						Name:        "osm_2",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						TileBuffer:  env.IntPtr(env.Int(64)),
-						Layers: []provider.MapLayer{
-							{
-								Name:          "water",
-								ProviderLayer: "provider1.water_0_5",
-								MinZoom:       env.UintPtr(0),
-								MaxZoom:       env.UintPtr(5),
-								DefaultTags: env.Dict{
-									"provider": ENV_TEST_MAP_LAYER_DEFAULT_TAG,
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]interface{}{
+								{
+									"name":               "water_0_5",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
+								{
+									"name":               "water_6_10",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
 								},
 							},
-							{
-								Name:          "water",
-								ProviderLayer: "provider1.water_6_10",
-								MinZoom:       env.UintPtr(6),
-								MaxZoom:       env.UintPtr(10),
+						},
+					},
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{ENV_TEST_CENTER_X, ENV_TEST_CENTER_Y, ENV_TEST_CENTER_Z},
+							TileBuffer:  env.IntPtr(env.Int(64)),
+							Layers: []provider.MapLayer{
+								{
+									Name:          "water",
+									ProviderLayer: ENV_TEST_PROVIDER_LAYER,
+									MinZoom:       nil,
+									MaxZoom:       nil,
+								},
+								{
+									Name:          "water",
+									ProviderLayer: "provider1.water_6_10",
+									MinZoom:       env.UintPtr(6),
+									MaxZoom:       env.UintPtr(10),
+								},
+							},
+						},
+						{
+							Name:        "osm_2",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							TileBuffer:  env.IntPtr(env.Int(64)),
+							Layers: []provider.MapLayer{
+								{
+									Name:          "water",
+									ProviderLayer: "provider1.water_0_5",
+									MinZoom:       env.UintPtr(0),
+									MaxZoom:       env.UintPtr(5),
+									DefaultTags: env.Dict{
+										"provider": ENV_TEST_MAP_LAYER_DEFAULT_TAG,
+									},
+								},
+								{
+									Name:          "water",
+									ProviderLayer: "provider1.water_6_10",
+									MinZoom:       env.UintPtr(6),
+									MaxZoom:       env.UintPtr(10),
+								},
 							},
 						},
 					},
@@ -425,36 +432,38 @@ func TestValidateMutateZoom(t *testing.T) {
 				Webserver: config.Webserver{
 					Port: ":8080",
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
 							},
 						},
 					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water",
-								MinZoom:       nil,
-								MaxZoom:       nil,
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water",
+									MinZoom:       nil,
+									MaxZoom:       nil,
+								},
 							},
 						},
 					},
@@ -469,36 +478,38 @@ func TestValidateMutateZoom(t *testing.T) {
 				Webserver: config.Webserver{
 					Port: ":8080",
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
 							},
 						},
 					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water",
-								MinZoom:       env.UintPtr(0),
-								MaxZoom:       env.UintPtr(0),
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water",
+									MinZoom:       env.UintPtr(0),
+									MaxZoom:       env.UintPtr(0),
+								},
 							},
 						},
 					},
@@ -537,58 +548,60 @@ func TestValidate(t *testing.T) {
 				Webserver: config.Webserver{
 					Port: ":8080",
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
+							},
+						},
+						{
+							"name":     "provider2",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
 							},
 						},
 					},
-					{
-						"name":     "provider2",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
-							},
-						},
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water",
-								MinZoom:       env.UintPtr(10),
-								MaxZoom:       env.UintPtr(20),
-							},
-							{
-								ProviderLayer: "provider2.water",
-								MinZoom:       env.UintPtr(10),
-								MaxZoom:       env.UintPtr(20),
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water",
+									MinZoom:       env.UintPtr(10),
+									MaxZoom:       env.UintPtr(20),
+								},
+								{
+									ProviderLayer: "provider2.water",
+									MinZoom:       env.UintPtr(10),
+									MaxZoom:       env.UintPtr(20),
+								},
 							},
 						},
 					},
@@ -601,60 +614,62 @@ func TestValidate(t *testing.T) {
 		},
 		"happy path 2": {
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water_0_5",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water_0_5",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
+							},
+						},
+						{
+							"name":     "provider2",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water_5_10",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
 							},
 						},
 					},
-					{
-						"name":     "provider2",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water_5_10",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
-							},
-						},
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								Name:          "water",
-								ProviderLayer: "provider1.water_0_5",
-								MinZoom:       env.UintPtr(0),
-								MaxZoom:       env.UintPtr(5),
-							},
-							{
-								Name:          "water",
-								ProviderLayer: "provider2.water_5_10",
-								MinZoom:       env.UintPtr(5),
-								MaxZoom:       env.UintPtr(10),
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									Name:          "water",
+									ProviderLayer: "provider1.water_0_5",
+									MinZoom:       env.UintPtr(0),
+									MaxZoom:       env.UintPtr(5),
+								},
+								{
+									Name:          "water",
+									ProviderLayer: "provider2.water_5_10",
+									MinZoom:       env.UintPtr(5),
+									MaxZoom:       env.UintPtr(10),
+								},
 							},
 						},
 					},
@@ -671,76 +686,78 @@ func TestValidate(t *testing.T) {
 				Webserver: config.Webserver{
 					Port: ":8080",
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
+							},
+						},
+						{
+							"name":     "provider2",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
 							},
 						},
 					},
-					{
-						"name":     "provider2",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water",
+									MinZoom:       env.UintPtr(10),
+									MaxZoom:       env.UintPtr(15),
+								},
+								{
+									ProviderLayer: "provider2.water",
+									MinZoom:       env.UintPtr(16),
+									MaxZoom:       env.UintPtr(20),
+								},
 							},
 						},
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water",
-								MinZoom:       env.UintPtr(10),
-								MaxZoom:       env.UintPtr(15),
-							},
-							{
-								ProviderLayer: "provider2.water",
-								MinZoom:       env.UintPtr(16),
-								MaxZoom:       env.UintPtr(20),
-							},
-						},
-					},
-					{
-						Name:        "osm_2",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water",
-								MinZoom:       env.UintPtr(10),
-								MaxZoom:       env.UintPtr(15),
-							},
-							{
-								ProviderLayer: "provider2.water",
-								MinZoom:       env.UintPtr(16),
-								MaxZoom:       env.UintPtr(20),
+						{
+							Name:        "osm_2",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water",
+									MinZoom:       env.UintPtr(10),
+									MaxZoom:       env.UintPtr(15),
+								},
+								{
+									ProviderLayer: "provider2.water",
+									MinZoom:       env.UintPtr(16),
+									MaxZoom:       env.UintPtr(20),
+								},
 							},
 						},
 					},
@@ -754,62 +771,64 @@ func TestValidate(t *testing.T) {
 				Webserver: config.Webserver{
 					Port: ":8080",
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
+							},
+						},
+						{
+							"name":     "provider2",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
 							},
 						},
 					},
-					{
-						"name":     "provider2",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water",
+								},
 							},
 						},
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water",
-							},
-						},
-					},
-					{
-						Name:        "osm_2",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider2.water",
+						{
+							Name:        "osm_2",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider2.water",
+								},
 							},
 						},
 					},
@@ -823,54 +842,56 @@ func TestValidate(t *testing.T) {
 				Webserver: config.Webserver{
 					Port: ":8080",
 				},
-				Providers: []env.Dict{
-					{
-						"name":     "provider1",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name":     "provider1",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
+							},
+						},
+						{
+							"name":     "provider2",
+							"type":     "postgis",
+							"host":     "localhost",
+							"port":     int64(5432),
+							"database": "osm_water",
+							"user":     "admin",
+							"password": "",
+							"layers": []map[string]any{
+								{
+									"name":               "water",
+									"geometry_fieldname": "geom",
+									"id_fieldname":       "gid",
+									"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
+								},
 							},
 						},
 					},
-					{
-						"name":     "provider2",
-						"type":     "postgis",
-						"host":     "localhost",
-						"port":     int64(5432),
-						"database": "osm_water",
-						"user":     "admin",
-						"password": "",
-						"layers": []map[string]any{
-							{
-								"name":               "water",
-								"geometry_fieldname": "geom",
-								"id_fieldname":       "gid",
-								"sql":                "SELECT gid, ST_AsBinary(geom) AS geom FROM simplified_water_polygons WHERE geom && !BBOX!",
-							},
-						},
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "osm",
-						Attribution: "Test Attribution",
-						Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
-						Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water_default_z",
-							},
-							{
-								ProviderLayer: "provider2.water_default_z",
+					Maps: []provider.Map{
+						{
+							Name:        "osm",
+							Attribution: "Test Attribution",
+							Bounds:      []env.Float{-180, -85.05112877980659, 180, 85.0511287798066},
+							Center:      [3]env.Float{-76.275329586789, 39.153492567373, 8.0},
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water_default_z",
+								},
+								{
+									ProviderLayer: "provider2.water_default_z",
+								},
 							},
 						},
 					},
@@ -898,10 +919,12 @@ func TestValidate(t *testing.T) {
 		"non-existant provider type": {
 			expectedErr: config.ErrUnknownProviderType{Type: "nonexistant", Name: "provider1", KnownProviders: []string{"..."}},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "nonexistant",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "nonexistant",
+						},
 					},
 				},
 			},
@@ -909,9 +932,11 @@ func TestValidate(t *testing.T) {
 		"missing name field": {
 			expectedErr: config.ErrProviderNameRequired{Pos: 0},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"type": "test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"type": "test",
+						},
 					},
 				},
 			},
@@ -919,14 +944,16 @@ func TestValidate(t *testing.T) {
 		"duplicate name field": {
 			expectedErr: config.ErrProviderNameDuplicate{Pos: 1},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "test",
-					},
-					{
-						"name": "provider1",
-						"type": "test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "test",
+						},
+						{
+							"name": "provider1",
+							"type": "test",
+						},
 					},
 				},
 			},
@@ -934,13 +961,15 @@ func TestValidate(t *testing.T) {
 		"missing name field at pos 1": {
 			expectedErr: config.ErrProviderNameRequired{Pos: 1},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "test",
-					},
-					{
-						"type": "test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "test",
+						},
+						{
+							"type": "test",
+						},
 					},
 				},
 			},
@@ -948,9 +977,11 @@ func TestValidate(t *testing.T) {
 		"missing type field": {
 			expectedErr: config.ErrProviderTypeRequired{Pos: 0},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+						},
 					},
 				},
 			},
@@ -958,32 +989,36 @@ func TestValidate(t *testing.T) {
 		"missing type field at pos 1": {
 			expectedErr: config.ErrProviderTypeRequired{Pos: 1},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "test",
-					},
-					{
-						"name": "provider2",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "test",
+						},
+						{
+							"name": "provider2",
+						},
 					},
 				},
 			},
 		},
 		"happy 1 mvt provider only 1 layer": {
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "mvt_test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "mvt_test",
+						},
 					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "happy",
-						Attribution: "Test Attribution",
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water_default_z",
+					Maps: []provider.Map{
+						{
+							Name:        "happy",
+							Attribution: "Test Attribution",
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water_default_z",
+								},
 							},
 						},
 					},
@@ -992,22 +1027,24 @@ func TestValidate(t *testing.T) {
 		},
 		"happy 1 mvt provider only 2 layer": {
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "mvt_test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "mvt_test",
+						},
 					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "happy",
-						Attribution: "Test Attribution",
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water_default_z",
-							},
-							{
-								ProviderLayer: "provider1.land_default_z",
+					Maps: []provider.Map{
+						{
+							Name:        "happy",
+							Attribution: "Test Attribution",
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water_default_z",
+								},
+								{
+									ProviderLayer: "provider1.land_default_z",
+								},
 							},
 						},
 					},
@@ -1016,26 +1053,28 @@ func TestValidate(t *testing.T) {
 		},
 		"happy 1 mvt, 1 std provider only 1 layer": {
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "mvt_test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "mvt_test",
+						},
+						{
+							"name": "provider2",
+							"type": "test",
+						},
 					},
-					{
-						"name": "provider2",
-						"type": "test",
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "happy",
-						Attribution: "Test Attribution",
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water_default_z",
-							},
-							{
-								ProviderLayer: "provider1.land_default_z",
+					Maps: []provider.Map{
+						{
+							Name:        "happy",
+							Attribution: "Test Attribution",
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water_default_z",
+								},
+								{
+									ProviderLayer: "provider1.land_default_z",
+								},
 							},
 						},
 					},
@@ -1048,19 +1087,21 @@ func TestValidate(t *testing.T) {
 				ProviderName: "bad",
 			},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "mvt_test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "mvt_test",
+						},
 					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "happy",
-						Attribution: "Test Attribution",
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "bad.water_default_z",
+					Maps: []provider.Map{
+						{
+							Name:        "happy",
+							Attribution: "Test Attribution",
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "bad.water_default_z",
+								},
 							},
 						},
 					},
@@ -1073,26 +1114,28 @@ func TestValidate(t *testing.T) {
 				Current:  "stdprovider1",
 			},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "provider1",
-						"type": "mvt_test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "provider1",
+							"type": "mvt_test",
+						},
+						{
+							"name": "stdprovider1",
+							"type": "test",
+						},
 					},
-					{
-						"name": "stdprovider1",
-						"type": "test",
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "comingle",
-						Attribution: "Test Attribution",
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "provider1.water_default_z",
-							},
-							{
-								ProviderLayer: "stdprovider1.water_default_z",
+					Maps: []provider.Map{
+						{
+							Name:        "comingle",
+							Attribution: "Test Attribution",
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "provider1.water_default_z",
+								},
+								{
+									ProviderLayer: "stdprovider1.water_default_z",
+								},
 							},
 						},
 					},
@@ -1105,26 +1148,28 @@ func TestValidate(t *testing.T) {
 				Current:  "provider1",
 			},
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "stdprovider1",
-						"type": "test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "stdprovider1",
+							"type": "test",
+						},
+						{
+							"name": "provider1",
+							"type": "mvt_test",
+						},
 					},
-					{
-						"name": "provider1",
-						"type": "mvt_test",
-					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:        "comingle",
-						Attribution: "Test Attribution",
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "stdprovider1.water_default_z",
-							},
-							{
-								ProviderLayer: "provider1.water_default_z",
+					Maps: []provider.Map{
+						{
+							Name:        "comingle",
+							Attribution: "Test Attribution",
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "stdprovider1.water_default_z",
+								},
+								{
+									ProviderLayer: "provider1.water_default_z",
+								},
 							},
 						},
 					},
@@ -1133,14 +1178,16 @@ func TestValidate(t *testing.T) {
 		},
 		"reserved token name": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name: "bad_param",
-						Parameters: []provider.QueryParameter{
-							{
-								Name:  "param",
-								Token: "!BBOX!",
-								Type:  "int",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "bad_param",
+							Parameters: []provider.QueryParameter{
+								{
+									Name:  "param",
+									Token: "!BBOX!",
+									Type:  "int",
+								},
 							},
 						},
 					},
@@ -1157,19 +1204,21 @@ func TestValidate(t *testing.T) {
 		},
 		"duplicate parameter name": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name: "dupe_param_name",
-						Parameters: []provider.QueryParameter{
-							{
-								Name:  "param",
-								Token: "!PARAM!",
-								Type:  "int",
-							},
-							{
-								Name:  "param",
-								Token: "!PARAM2!",
-								Type:  "int",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "dupe_param_name",
+							Parameters: []provider.QueryParameter{
+								{
+									Name:  "param",
+									Token: "!PARAM!",
+									Type:  "int",
+								},
+								{
+									Name:  "param",
+									Token: "!PARAM2!",
+									Type:  "int",
+								},
 							},
 						},
 					},
@@ -1186,19 +1235,21 @@ func TestValidate(t *testing.T) {
 		},
 		"duplicate token name": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name: "dupe_param_token",
-						Parameters: []provider.QueryParameter{
-							{
-								Name:  "param",
-								Token: "!PARAM!",
-								Type:  "int",
-							},
-							{
-								Name:  "param2",
-								Token: "!PARAM!",
-								Type:  "int",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "dupe_param_token",
+							Parameters: []provider.QueryParameter{
+								{
+									Name:  "param",
+									Token: "!PARAM!",
+									Type:  "int",
+								},
+								{
+									Name:  "param2",
+									Token: "!PARAM!",
+									Type:  "int",
+								},
 							},
 						},
 					},
@@ -1215,14 +1266,16 @@ func TestValidate(t *testing.T) {
 		},
 		"parameter unknown type": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name: "unknown_param_type",
-						Parameters: []provider.QueryParameter{
-							{
-								Name:  "param",
-								Token: "!BBOX!",
-								Type:  "foo",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "unknown_param_type",
+							Parameters: []provider.QueryParameter{
+								{
+									Name:  "param",
+									Token: "!BBOX!",
+									Type:  "foo",
+								},
 							},
 						},
 					},
@@ -1239,16 +1292,18 @@ func TestValidate(t *testing.T) {
 		},
 		"parameter two defaults": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name: "unknown_two_defaults",
-						Parameters: []provider.QueryParameter{
-							{
-								Name:         "param",
-								Token:        "!BBOX!",
-								Type:         "string",
-								DefaultSQL:   "foo",
-								DefaultValue: "bar",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "unknown_two_defaults",
+							Parameters: []provider.QueryParameter{
+								{
+									Name:         "param",
+									Token:        "!BBOX!",
+									Type:         "string",
+									DefaultSQL:   "foo",
+									DefaultValue: "bar",
+								},
 							},
 						},
 					},
@@ -1267,16 +1322,18 @@ func TestValidate(t *testing.T) {
 		},
 		"parameter invalid default": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name: "parameter_invalid_default",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "parameter_invalid_default",
 
-						Parameters: []provider.QueryParameter{
-							{
-								Name:         "param",
-								Token:        "!BBOX!",
-								Type:         "int",
-								DefaultValue: "foo",
+							Parameters: []provider.QueryParameter{
+								{
+									Name:         "param",
+									Token:        "!BBOX!",
+									Type:         "int",
+									DefaultValue: "foo",
+								},
 							},
 						},
 					},
@@ -1294,14 +1351,16 @@ func TestValidate(t *testing.T) {
 		},
 		"invalid token name": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name: "parameter_invalid_token",
-						Parameters: []provider.QueryParameter{
-							{
-								Name:  "param",
-								Token: "!Token with spaces!",
-								Type:  "int",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "parameter_invalid_token",
+							Parameters: []provider.QueryParameter{
+								{
+									Name:  "param",
+									Token: "!Token with spaces!",
+									Type:  "int",
+								},
 							},
 						},
 					},
@@ -1319,20 +1378,22 @@ func TestValidate(t *testing.T) {
 		"invalid tilejson version": {
 			expectedErr: config.ErrUnknownTileJSONVersion,
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "some_provider",
-						"type": "mvt_test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "some_provider",
+							"type": "mvt_test",
+						},
 					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:            "some_map",
-						Attribution:     "Test Attribution",
-						TileJSONVersion: "foobar",
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "some_provider.some_layer",
+					Maps: []provider.Map{
+						{
+							Name:            "some_map",
+							Attribution:     "Test Attribution",
+							TileJSONVersion: "foobar",
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "some_provider.some_layer",
+								},
 							},
 						},
 					},
@@ -1341,20 +1402,22 @@ func TestValidate(t *testing.T) {
 		},
 		"valid tilejson version": {
 			config: config.Config{
-				Providers: []env.Dict{
-					{
-						"name": "some_provider",
-						"type": "mvt_test",
+				App: source.App{
+					Providers: []env.Dict{
+						{
+							"name": "some_provider",
+							"type": "mvt_test",
+						},
 					},
-				},
-				Maps: []provider.Map{
-					{
-						Name:            "some_map",
-						Attribution:     "Test Attribution",
-						TileJSONVersion: tilejson.Version3,
-						Layers: []provider.MapLayer{
-							{
-								ProviderLayer: "some_provider.some_layer",
+					Maps: []provider.Map{
+						{
+							Name:            "some_map",
+							Attribution:     "Test Attribution",
+							TileJSONVersion: tilejson.Version3,
+							Layers: []provider.MapLayer{
+								{
+									ProviderLayer: "some_provider.some_layer",
+								},
 							},
 						},
 					},
@@ -1389,17 +1452,21 @@ func TestConfigureTileBuffers(t *testing.T) {
 	tests := map[string]tcase{
 		"1 tilebuffer is not set": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name: "osm",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "osm",
+						},
 					},
 				},
 			},
 			expected: config.Config{
-				Maps: []provider.Map{
-					{
-						Name:       "osm",
-						TileBuffer: env.IntPtr(env.Int(64)),
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name:       "osm",
+							TileBuffer: env.IntPtr(env.Int(64)),
+						},
 					},
 				},
 			},
@@ -1407,51 +1474,59 @@ func TestConfigureTileBuffers(t *testing.T) {
 		"2 tilebuffer is set in global section": {
 			config: config.Config{
 				TileBuffer: env.IntPtr(env.Int(32)),
-				Maps: []provider.Map{
-					{
-						Name: "osm",
-					},
-					{
-						Name: "osm-2",
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name: "osm",
+						},
+						{
+							Name: "osm-2",
+						},
 					},
 				},
 			},
 			expected: config.Config{
 				TileBuffer: env.IntPtr(env.Int(32)),
-				Maps: []provider.Map{
-					{
-						Name:       "osm",
-						TileBuffer: env.IntPtr(env.Int(32)),
-					},
-					{
-						Name:       "osm-2",
-						TileBuffer: env.IntPtr(env.Int(32)),
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name:       "osm",
+							TileBuffer: env.IntPtr(env.Int(32)),
+						},
+						{
+							Name:       "osm-2",
+							TileBuffer: env.IntPtr(env.Int(32)),
+						},
 					},
 				},
 			},
 		},
 		"3 tilebuffer is set in map section": {
 			config: config.Config{
-				Maps: []provider.Map{
-					{
-						Name:       "osm",
-						TileBuffer: env.IntPtr(env.Int(16)),
-					},
-					{
-						Name:       "osm-2",
-						TileBuffer: env.IntPtr(env.Int(32)),
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name:       "osm",
+							TileBuffer: env.IntPtr(env.Int(16)),
+						},
+						{
+							Name:       "osm-2",
+							TileBuffer: env.IntPtr(env.Int(32)),
+						},
 					},
 				},
 			},
 			expected: config.Config{
-				Maps: []provider.Map{
-					{
-						Name:       "osm",
-						TileBuffer: env.IntPtr(env.Int(16)),
-					},
-					{
-						Name:       "osm-2",
-						TileBuffer: env.IntPtr(env.Int(32)),
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name:       "osm",
+							TileBuffer: env.IntPtr(env.Int(16)),
+						},
+						{
+							Name:       "osm-2",
+							TileBuffer: env.IntPtr(env.Int(32)),
+						},
 					},
 				},
 			},
@@ -1459,19 +1534,23 @@ func TestConfigureTileBuffers(t *testing.T) {
 		"4 tilebuffer is set in global and map sections": {
 			config: config.Config{
 				TileBuffer: env.IntPtr(env.Int(32)),
-				Maps: []provider.Map{
-					{
-						Name:       "osm",
-						TileBuffer: env.IntPtr(env.Int(16)),
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name:       "osm",
+							TileBuffer: env.IntPtr(env.Int(16)),
+						},
 					},
 				},
 			},
 			expected: config.Config{
 				TileBuffer: env.IntPtr(env.Int(32)),
-				Maps: []provider.Map{
-					{
-						Name:       "osm",
-						TileBuffer: env.IntPtr(env.Int(16)),
+				App: source.App{
+					Maps: []provider.Map{
+						{
+							Name:       "osm",
+							TileBuffer: env.IntPtr(env.Int(16)),
+						},
 					},
 				},
 			},

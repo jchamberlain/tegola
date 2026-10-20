@@ -74,9 +74,6 @@ var (
 	// isSelectQuery is a regexp to check if a query starts with `SELECT`,
 	// case-insensitive and ignoring any preceding whitespace and SQL comments.
 	isSelectQuery = regexp.MustCompile(`(?i)^((\s*)(--.*\n)?)*select`)
-
-	// reference to all instantiated providers
-	providers []Provider
 )
 
 // Provider provides the postgis data provider.
@@ -503,6 +500,12 @@ func (p Provider) MVTForLayers(
 
 // Close will close the Provider's database connectio
 func (p *Provider) Close() { p.pool.Close() }
+
+// Cleanup calls Close()
+func (p *Provider) Cleanup() error {
+	p.Close()
+	return nil
+}
 
 // setLayerGeomType sets the geomType field on the layer to one of point,
 // linestring, polygon, multipoint, multilinestring, multipolygon or
@@ -931,21 +934,5 @@ func CreateProvider(
 	}
 	p.layers = lyrs
 
-	// track the provider so we can clean it up later
-	providers = append(providers, p)
-
 	return &p, nil
-}
-
-// Cleanup will close all database connections and destroy all previously instantiated Provider instances
-func Cleanup() {
-	if len(providers) > 0 {
-		log.Infof("cleaning up postgis providers")
-	}
-
-	for i := range providers {
-		providers[i].Close()
-	}
-
-	providers = make([]Provider, 0)
 }

@@ -6,12 +6,14 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/go-spatial/tegola"
+	"github.com/go-spatial/tegola/config/source"
 	"github.com/go-spatial/tegola/internal/env"
 	"github.com/go-spatial/tegola/internal/log"
 	"github.com/go-spatial/tegola/mapbox/tilejson"
@@ -57,6 +59,7 @@ type Config struct {
 	// If this is an empty string, it means that the location was unknown. This is the case if
 	// the Parse() function is used directly.
 	LocationName string
+	BaseDir      string
 	Webserver    Webserver `toml:"webserver"`
 	Cache        env.Dict  `toml:"cache"`
 	Observer     env.Dict  `toml:"observer"`
@@ -67,8 +70,8 @@ type Config struct {
 	// 2. type -- this is the name the provider modules register
 	// themselves under. (e.g. postgis, gpkg, mvt_postgis )
 	// Note: Use the type to figure out if the provider is a mvt or std provider
-	Providers []env.Dict     `toml:"providers"`
-	Maps      []provider.Map `toml:"maps"`
+	source.App
+	AppConfigSource env.Dict `toml:"app_config_source"`
 }
 
 // Webserver represents the config options for the webserver part of Tegola
@@ -150,6 +153,8 @@ func ValidateAndRegisterParams(mapName string, params []provider.QueryParameter)
 	}
 
 	// Mark all used tokens as reserved
+	// This looks like it's going to cause trouble if the global ReservedTokens map just keeps growing.
+	// I guess a map can't be reloaded if it uses tokens?
 	for token := range usedTokens {
 		ReservedTokens[token] = struct{}{}
 	}
@@ -157,8 +162,10 @@ func ValidateAndRegisterParams(mapName string, params []provider.QueryParameter)
 	return nil
 }
 
-// Validate checks the config for issues
-func (c *Config) Validate() error {
+// ValidateApp checks map and provider config for issues and sets
+// some defaults along the way.
+// (Lifted from Config.Validate())
+func ValidateApp(app *source.App) error {
 	var knownTypes []string
 	drivers := make(map[string]int)
 	for _, name := range provider.Drivers(provider.TypeStd) {
@@ -171,8 +178,8 @@ func (c *Config) Validate() error {
 	}
 	// mvtproviders maps a known provider name to whether that provider is
 	// an mvt provider or not.
-	mvtproviders := make(map[string]bool, len(c.Providers))
-	for i, prvd := range c.Providers {
+	mvtproviders := make(map[string]bool, len(app.Providers))
+	for i, prvd := range app.Providers {
 		name, _ := prvd.String("name", nil)
 		if name == "" {
 			return ErrProviderNameRequired{Pos: i}
@@ -200,7 +207,7 @@ func (c *Config) Validate() error {
 	mapLayers := map[string]map[string]provider.MapLayer{}
 	// maps with configured parameters for logging
 	mapsWithCustomParams := []string{}
-	for mapKey, m := range c.Maps {
+	for mapKey, m := range app.Maps {
 		// validate any declared query parameters
 		if err := ValidateAndRegisterParams(string(m.Name), m.Parameters); err != nil {
 			return err
@@ -278,7 +285,7 @@ func (c *Config) Validate() error {
 				// set in iterated value
 				l.MaxZoom = &ph
 				// set in underlying config struct
-				c.Maps[mapKey].Layers[layerKey].MaxZoom = &ph
+				app.Maps[mapKey].Layers[layerKey].MaxZoom = &ph
 			}
 			// MinZoom default
 			if l.MinZoom == nil {
@@ -286,7 +293,7 @@ func (c *Config) Validate() error {
 				// set in iterated value
 				l.MinZoom = &ph
 				// set in underlying config struct
-				c.Maps[mapKey].Layers[layerKey].MinZoom = &ph
+				app.Maps[mapKey].Layers[layerKey].MinZoom = &ph
 			}
 
 			if int(*l.MaxZoom) == 0 {
@@ -295,7 +302,7 @@ func (c *Config) Validate() error {
 				// set in iterated value
 				l.MaxZoom = &ph
 				// set in underlying config struct
-				c.Maps[mapKey].Layers[layerKey].MaxZoom = &ph
+				app.Maps[mapKey].Layers[layerKey].MaxZoom = &ph
 			}
 
 			// check if we already have this layer
@@ -320,6 +327,16 @@ func (c *Config) Validate() error {
 			"Caching is disabled for these maps, since they have configured custom parameters: %s",
 			strings.Join(mapsWithCustomParams, ", "),
 		)
+	}
+
+	return nil
+}
+
+// Validate checks the config for issues
+func (c *Config) Validate() error {
+	// Validate the "app": providers and maps.
+	if err := ValidateApp(&c.App); err != nil {
+		return err
 	}
 
 	// check for blacklisted headers
@@ -365,7 +382,7 @@ func (c *Config) ConfigureTileBuffers() {
 }
 
 // Parse will parse the Tegola config file provided by the io.Reader.
-func Parse(reader io.Reader, location string) (conf Config, err error) {
+func Parse(reader io.Reader, location, baseDir string) (conf Config, err error) {
 	// decode conf file, don't care about the meta data.
 	_, err = toml.NewDecoder(reader).Decode(&conf)
 	if err != nil {
@@ -380,6 +397,7 @@ func Parse(reader io.Reader, location string) (conf Config, err error) {
 	}
 
 	conf.LocationName = location
+	conf.BaseDir = baseDir
 
 	conf.ConfigureTileBuffers()
 
@@ -389,6 +407,7 @@ func Parse(reader io.Reader, location string) (conf Config, err error) {
 // Load will load and parse the config file from the given location.
 func Load(location string) (conf Config, err error) {
 	var reader io.Reader
+	baseDir := ""
 
 	// check for http prefix
 	if strings.HasPrefix(location, "http") {
@@ -422,9 +441,11 @@ func Load(location string) (conf Config, err error) {
 		if err != nil {
 			return conf, fmt.Errorf("error opening local config file (%v): %v ", location, err)
 		}
+
+		baseDir = filepath.Dir(location)
 	}
 
-	return Parse(reader, location)
+	return Parse(reader, location, baseDir)
 }
 
 // LoadAndValidate will load the config from the given filename and validate it if it was
