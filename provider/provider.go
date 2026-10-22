@@ -290,7 +290,10 @@ func For(ptype string, config dict.Dicter, maps []Map, namespace string) (val Ti
 		return val, ErrUnknownProvider{KnownProviders: driversList, Name: ptype}
 	}
 
-	name, _ := config.String("name", nil)
+	var name string
+	if config != nil {
+		name, _ = config.String("name", nil)
+	}
 	if p.init != nil {
 		val.Std, err = p.init(config, maps)
 		recordInstance(name, namespace, val)

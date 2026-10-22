@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/go-test/deep"
@@ -74,8 +75,9 @@ func TestParse(t *testing.T) {
 					t.Fatalf("expected err %s, got nil", tc.expectedErr)
 				}
 
-				// compare error messages
-				if tc.expectedErr.Error() != err.Error() {
+				// compare error messages; the toml decoder prefixes errors from
+				// UnmarshalTOML with the position (e.g. `toml: line 5 (last key "x"): `)
+				if !strings.Contains(err.Error(), tc.expectedErr.Error()) {
 					t.Fatalf("invalid error. expected %v, got %v", tc.expectedErr, err)
 				}
 

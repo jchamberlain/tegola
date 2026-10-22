@@ -33,6 +33,9 @@ var (
 	defaultDB         = 0
 	defaultSSL        = false
 	defaultKeyPattern = "tegola_app:*"
+
+	// redisRetryDelay is how long to wait before receiving again after a Redis event error.
+	redisRetryDelay = time.Second
 )
 
 // RedisConfigSource is a config source for loading and watching keys in Redis.
@@ -71,12 +74,30 @@ func (s *RedisConfigSource) LoadAndWatch(ctx context.Context) (ConfigWatcher, er
 
 		// Subscribe additions/removals/edits.
 		pubsub := s.client.PSubscribe(ctx, "__keyevent*")
-		defer pubsub.PUnsubscribe(ctx)
+		defer pubsub.Close()
+
+		// ReceiveMessage doesn't return on context cancellation while blocked
+		// reading, so close the subscription to unblock it.
+		go func() {
+			<-ctx.Done()
+			pubsub.Close()
+		}()
 
 		for {
 			msg, err := pubsub.ReceiveMessage(ctx)
 			if err != nil {
-				log.Errorf("Error receiving Redis event. %s", err)
+				if ctx.Err() != nil {
+					return
+				}
+
+				log.Errorf("Error receiving Redis event. Retrying in %s. %s", redisRetryDelay, err)
+
+				// Avoid spinning while Redis is unavailable.
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(redisRetryDelay):
+				}
 				continue
 			}
 
