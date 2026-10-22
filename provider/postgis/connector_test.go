@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-spatial/tegola/dict"
 	"github.com/go-spatial/tegola/internal/ttools"
@@ -127,6 +128,41 @@ func TestConnector(t *testing.T) {
 	for name, tc := range tcases {
 		t.Run(name, func(t *testing.T) {
 			fn(t, tc)
+		})
+	}
+}
+
+func TestConnectTimeoutFromConfig(t *testing.T) {
+	type tcase struct {
+		config      dict.Dict
+		expected    time.Duration
+		expectedErr bool
+	}
+
+	testCases := map[string]tcase{
+		"default":  {config: dict.Dict{}, expected: 10 * time.Second},
+		"custom":   {config: dict.Dict{ConfigKeyConnectTimeout: "30s"}, expected: 30 * time.Second},
+		"invalid":  {config: dict.Dict{ConfigKeyConnectTimeout: "thirty"}, expectedErr: true},
+		"zero":     {config: dict.Dict{ConfigKeyConnectTimeout: "0s"}, expectedErr: true},
+		"negative": {config: dict.Dict{ConfigKeyConnectTimeout: "-1s"}, expectedErr: true},
+		"number":   {config: dict.Dict{ConfigKeyConnectTimeout: 30}, expectedErr: true},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			got, err := connectTimeoutFromConfig(tc.config)
+			if tc.expectedErr {
+				if err == nil {
+					t.Fatalf("expected error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.expected {
+				t.Errorf("expected %v, got %v", tc.expected, got)
+			}
 		})
 	}
 }

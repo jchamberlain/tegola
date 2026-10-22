@@ -38,7 +38,7 @@ const (
 func decodeGeometry(bytes []byte) (*BinaryHeader, geom.Geometry, error) {
 	h, err := NewBinaryHeader(bytes)
 	if err != nil {
-		log.Error("error decoding geometry header: %v", err)
+		log.Errorf("error decoding geometry header: %v", err)
 		return h, nil, err
 	}
 

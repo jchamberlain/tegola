@@ -96,6 +96,26 @@ func (c *defaultConnector) Connect(ctx context.Context) (*pgxpool.Pool, *pgxpool
 	return pool, pgxCfg, meta, nil
 }
 
+// connectTimeoutFromConfig reads the connect_timeout provider config key,
+// a Go duration string (e.g. "10s"), falling back to DefaultConnectTimeout.
+func connectTimeoutFromConfig(cfg dict.Dicter) (time.Duration, error) {
+	str := DefaultConnectTimeout
+	str, err := cfg.String(ConfigKeyConnectTimeout, &str)
+	if err != nil {
+		return 0, err
+	}
+
+	d, err := time.ParseDuration(str)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q: %w", ConfigKeyConnectTimeout, str, err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("invalid %s %q: must be greater than 0", ConfigKeyConnectTimeout, str)
+	}
+
+	return d, nil
+}
+
 func (c *defaultConnector) WithPingTimeout(d time.Duration) *defaultConnector {
 	c.pingTimeout = d
 	return c

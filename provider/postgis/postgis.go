@@ -42,6 +42,7 @@ const (
 	DefaultSSLCert                    = ""
 	DefaultApplicationName            = "tegola"
 	DefaultDefaultTransactionReadOnly = "TRUE"
+	DefaultConnectTimeout             = "10s"
 )
 
 const (
@@ -68,6 +69,7 @@ const (
 	ConfigKeyPoolMaxConnIdleTime        = "pool_max_conn_idletime"
 	ConfigKeyPoolHealthCheckPeriod      = "pool_health_check_period"
 	ConfigKeyPoolMaxConnLifeTimeJitter  = "pool_max_conn_lifetime_jitter"
+	ConfigKeyConnectTimeout             = "connect_timeout"
 )
 
 var (
@@ -702,7 +704,12 @@ func CreateProvider(
 	maps []provider.Map,
 	providerType string,
 ) (*Provider, error) {
-	c := newDefaultConnector(config)
+	connectTimeout, err := connectTimeoutFromConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	c := newDefaultConnector(config).WithPingTimeout(connectTimeout)
 	pool, pgxCfg, _, err := c.Connect(context.Background())
 	if err != nil {
 		return nil, err

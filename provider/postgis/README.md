@@ -36,6 +36,7 @@ default_transaction_read_only = "off"
 -   `name` (string): [Required] provider name is referenced from map layers
 -   `type` (string): [Required] the type of data provider. enum: postgis, mvt_postgis. 
 -   `srid` (int): [Optional] The default SRID for the provider. Defaults to WebMercator (3857) but also supports WGS84 (4326)
+-   `connect_timeout` (string): [Optional] How long to wait for the initial connection and ping when the provider is created, as a Go duration (e.g. "30s"). Defaults to "10s". Not to be confused with libpq's `connect_timeout` URI option, which is capped by this value.
 
 ### env mode vs uri mode
 

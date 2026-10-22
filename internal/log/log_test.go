@@ -3,6 +3,7 @@ package log_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -61,5 +62,38 @@ func TestStackTraceHandler(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, fn(tc))
+	}
+}
+
+func TestHelpersAcceptNonStringArgs(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	err := errors.New("boom")
+	helpers := map[string]func(args ...any){
+		"Error": log.Error,
+		"Warn":  log.Warn,
+		"Info":  log.Info,
+		"Debug": log.Debug,
+	}
+
+	for name, fn := range helpers {
+		t.Run(name, func(t *testing.T) {
+			buf.Reset()
+			fn(err)
+			fn("zoom list: ", []int{1, 2})
+
+			output := buf.String()
+			for _, want := range []string{`msg=boom`, `msg="zoom list: [1 2]"`} {
+				if !strings.Contains(output, want) {
+					t.Errorf("expected output to contain %s, got %q", want, output)
+				}
+			}
+			if strings.Contains(output, "BADKEY") {
+				t.Errorf("unexpected BADKEY in output %q", output)
+			}
+		})
 	}
 }

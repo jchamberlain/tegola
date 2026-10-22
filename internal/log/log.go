@@ -102,13 +102,16 @@ func ParseLogLevel(level string) slog.Level {
 }
 
 // TODO: remove those methods and use slog straight up
+//
+// The non-f variants format their args with fmt.Sprint, so any value
+// (e.g. an error) can be passed as the first argument.
 func Errorf(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	slog.Error(msg)
 }
 
 func Error(args ...any) {
-	slog.Error(args[0].(string), args...)
+	slog.Error(fmt.Sprint(args...))
 }
 
 func Warnf(format string, args ...any) {
@@ -117,7 +120,7 @@ func Warnf(format string, args ...any) {
 }
 
 func Warn(args ...any) {
-	slog.Warn(args[0].(string), args...)
+	slog.Warn(fmt.Sprint(args...))
 }
 
 func Infof(format string, args ...any) {
@@ -126,7 +129,7 @@ func Infof(format string, args ...any) {
 }
 
 func Info(args ...any) {
-	slog.Info(args[0].(string), args...)
+	slog.Info(fmt.Sprint(args...))
 }
 
 func Debugf(format string, args ...any) {
@@ -135,5 +138,5 @@ func Debugf(format string, args ...any) {
 }
 
 func Debug(args ...any) {
-	slog.Debug(args[0].(string), args...)
+	slog.Debug(fmt.Sprint(args...))
 }
