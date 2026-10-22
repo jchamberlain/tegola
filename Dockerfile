@@ -27,7 +27,7 @@
 #  $ docker run -v /path/to/docker-config:/opt/tegola_config -p 8080 tegola serve
 
 # Intermediary container for building
-FROM golang:1.26.7-alpine3.23 AS build
+FROM golang:1.27.3-alpine3.24 AS build
 
 ARG BUILDPKG="github.com/go-spatial/tegola/internal/build"
 ARG VER="Version Not Set"
@@ -42,6 +42,7 @@ ENV BUILD_PKG="${BUILDPKG}"
 # incurs approximately 1:30 extra build time (1:54 vs 0:27) to install packages.  Doesn't impact
 # development as these layers are drawn from cache after the first build.
 RUN apk update \
+	&& apk add ca-certificates \
 	&& apk add build-base
 
 # Set up source for compilation
@@ -52,20 +53,22 @@ RUN env
 
 # Build binary
 RUN cd /go/src/github.com/go-spatial/tegola/cmd/tegola \
-	&& go build -v  \
+	&& CGO_ENABLED=0 go build -v  \
 	-ldflags "-w -X '${BUILD_PKG}.Version=${VERSION}' -X '${BUILD_PKG}.GitRevision=${GIT_REVISION}' -X '${BUILD_PKG}.GitBranch=${GIT_BRANCH}'" \
 	-gcflags "-N -l" \
 	-o /opt/tegola \
 	&& chmod a+x /opt/tegola
 
-# Create minimal deployment image, just alpine & the binary
-FROM alpine:3.18
+# Create the /tmp directory we'll need in our deployment image.
+RUN mkdir -p /out/tmp/tegola && chown -R 10001:10001 /out/tmp
 
-RUN apk update \
-	&& apk add ca-certificates \
-	&& rm -rf /var/cache/apk/*
-
+# Create minimal deployment image, just certificate, config, and the binary
+FROM scratch
+USER 10001
+COPY --from=build --chown=10001:10001 /out/tmp /tmp
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /opt/tegola /opt/
 COPY geostrategies/config.toml /opt/config.toml
 WORKDIR /opt
+
 ENTRYPOINT ["/opt/tegola"]
